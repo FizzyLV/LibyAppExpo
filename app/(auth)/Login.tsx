@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { StyleSheet, Text, TextInput, TouchableOpacity, ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import * as SQLite from 'expo-sqlite';
+import { SaveUserData } from '../../utils/authUtility';
 
 export default function AccountScreen() {
   const [email, setEmail] = useState('');
@@ -9,20 +9,6 @@ export default function AccountScreen() {
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const saveUserToDB = async (tok: string) => {
-    try {
-      const db = await (SQLite as any).openDatabaseAsync('LibyApp.db');
-      const esc = (s: string) => s.replace(/'/g, "''");
-      const q = `INSERT INTO users (name, last_name, email, password, token) VALUES (NULL, NULL, '${esc(
-        email,
-      )}', '${esc(password)}', '${esc(tok)}');`;
-      await db.execAsync(q);
-    } catch (e: any) {
-      console.warn('Failed to save user to DB', e?.message ?? e);
-    }
-  };
-
   const handleLogin = async () => {
     setError(null);
     setToken(null);
@@ -66,8 +52,13 @@ export default function AccountScreen() {
       const tokenString = typeof receivedToken === 'string' ? receivedToken : JSON.stringify(receivedToken);
       setToken(tokenString);
 
-      // Save to SQLite (insecure, per user's note)
-      await saveUserToDB(tokenString);
+      // Extract user data from response
+      const firstName = data?.firstName ?? '';
+      const lastName = data?.lastName ?? '';
+
+      // Save to key-value storage
+      SaveUserData(firstName, lastName, email, password, tokenString);
+      
     } catch (err: any) {
       setError(err.message ?? 'Unknown error');
     } finally {
@@ -105,6 +96,8 @@ export default function AccountScreen() {
         {error ? <Text style={{ color: 'red' }}>Error: {error}</Text> : null}
       </View>
     </SafeAreaView>
+
+
   );
 }
 
