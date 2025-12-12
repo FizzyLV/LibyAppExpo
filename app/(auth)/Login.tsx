@@ -1,20 +1,22 @@
 import { useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAuth } from '../../context/authContext';
 import { SaveUserData } from '../../utils/authUtility';
 
 export default function AccountScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { signIn } = useAuth();
+  
   const handleLogin = async () => {
     setError(null);
-    setToken(null);
     setLoading(true);
+    
     try {
-      const res = await fetch('http://192.168.0.110:8000/api/token/', {
+      const res = await fetch('http://192.168.1.96:2134/api/token/', {
         method: 'POST',
         headers: {
           Accept: 'application/json',
@@ -25,7 +27,6 @@ export default function AccountScreen() {
 
       const text = await res.text();
       if (!res.ok) {
-        // Try parse JSON message if possible
         try {
           const parsed = JSON.parse(text);
           setError(JSON.stringify(parsed));
@@ -35,7 +36,6 @@ export default function AccountScreen() {
         return;
       }
 
-      // Parse success payload
       let data: any = null;
       try {
         data = JSON.parse(text);
@@ -50,14 +50,14 @@ export default function AccountScreen() {
       }
 
       const tokenString = typeof receivedToken === 'string' ? receivedToken : JSON.stringify(receivedToken);
-      setToken(tokenString);
-
-      // Extract user data from response
       const firstName = data?.firstName ?? '';
       const lastName = data?.lastName ?? '';
 
-      // Save to key-value storage
+      // Save to storage
       SaveUserData(firstName, lastName, email, password, tokenString);
+      
+      // Update context - this will trigger navigation in _layout.tsx
+      signIn(tokenString);
       
     } catch (err: any) {
       setError(err.message ?? 'Unknown error');
@@ -91,13 +91,12 @@ export default function AccountScreen() {
         {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Login</Text>}
       </TouchableOpacity>
 
-      <View style={{ width: '100%', marginTop: 12 }}>
-        {token ? <Text style={{ color: 'green' }}>Token: {token}</Text> : null}
-        {error ? <Text style={{ color: 'red' }}>Error: {error}</Text> : null}
-      </View>
+      {error ? (
+        <View style={{ width: '100%', marginTop: 12 }}>
+          <Text style={{ color: 'red' }}>Error: {error}</Text>
+        </View>
+      ) : null}
     </SafeAreaView>
-
-
   );
 }
 
@@ -116,9 +115,6 @@ const styles = StyleSheet.create({
     borderColor: '#ccc',
     borderRadius: 5,
     color: '#fff',
-  },
-  TextInput: {
-    color: '#FFFFFF',
   },
   button: {
     width: '100%',
