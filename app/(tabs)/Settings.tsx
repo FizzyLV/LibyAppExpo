@@ -7,9 +7,9 @@ export default function SettingsScreen() {
   const { signOut } = useAuth();
   const userData = GetUserData();
 
-  const handleLogout = () => {
-    ClearUserData();
-    signOut(); // This triggers navigation in _layout.tsx
+  const handleLogout = async () => {  // Make this async
+    await ClearUserData();  // Wait for the logout request to complete
+    signOut(); // THEN trigger navigation
   };
 
   return (

@@ -1,13 +1,7 @@
 import storage from 'expo-sqlite/kv-store';
+import { UserDataInterface } from '../models/userData';
 
 
-export interface UserDataInterface {
-    firstname: string | null;
-    lastname: string | null;
-    email: string | null;
-    password: string | null;
-    token: string | null;
-}
 
 export function SaveUserData(firstname: string, lastname: string, email: string, password: string, token: string) {
     Object.entries({ firstname, lastname, email, password, token })
@@ -15,20 +9,29 @@ export function SaveUserData(firstname: string, lastname: string, email: string,
 }
 
 
-export function ClearUserData() {
+export async function ClearUserData() {
+    const token = storage.getItemSync('token');
+    
+    try {
+        const response = await fetch('http://192.168.0.110:8000/api/token/logout/', {
+            method: 'POST',
+            headers: {
+                'authorization': token || ''  // Convert null to empty string
+            }
+        });
+        
+        if (response.ok) {
+            console.log('Logout successful');
+        } else {
+            console.log('Logout failed');
+        }
+    } catch (error) {
+        console.error('Logout error:', error);
+    }
+    
+    // Clear storage AFTER logout request completes
     ['firstname', 'lastname', 'email', 'password', 'token']
         .forEach(key => storage.removeItem(key));
-    /* Remove token from server side.
-     try {
-      const res = await fetch('http://192.168.0.110:8000/api/token/', {
-        method: 'POST',
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      }); */
-
 }
 
 export function GetUserData(): UserDataInterface {

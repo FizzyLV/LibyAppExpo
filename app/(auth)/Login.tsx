@@ -15,8 +15,8 @@ export default function AccountScreen() {
     setError(null);
     setLoading(true);
     
-    try {
-      const res = await fetch('http://192.168.1.96:2134/api/token/', {
+    try { 
+      const res = await fetch('http://192.168.0.110:8000/api/token/', {
         method: 'POST',
         headers: {
           Accept: 'application/json',
