@@ -1,16 +1,22 @@
-import { ClearUserData, GetUserData } from '@/utils/authUtility';
 import { Button, StyleSheet, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/authContext';
-
+import { deleteAccount, GetUserData, logOut } from '../../utils/authUtility';
+import { resetDatabase } from '../../utils/databaseCreate';
 export default function SettingsScreen() {
   const { signOut } = useAuth();
   const userData = GetUserData();
 
-  const handleLogout = async () => {  // Make this async
-    await ClearUserData();  // Wait for the logout request to complete
+  const handleLogout = async () => { 
+    await logOut()
     signOut(); // THEN trigger navigation
   };
+  const handleAccountDeletion = async () => {  
+    await deleteAccount();
+    signOut(); 
+  };
+
+
 
   return (
     <SafeAreaView style={styles.container}>
@@ -21,6 +27,7 @@ export default function SettingsScreen() {
         editable={false}
         keyboardType="email-address"
         selectionColor="#fff"
+        
       />
       <TextInput 
         style={styles.input}
@@ -43,6 +50,15 @@ export default function SettingsScreen() {
         title="Logout"
         onPress={handleLogout}
       />
+      <Button
+        title="Delete Account"
+        onPress={handleAccountDeletion}
+      />
+      <Button
+        title="Delete DB"
+        onPress={resetDatabase}
+      />
+
     </SafeAreaView> 
   );
 }

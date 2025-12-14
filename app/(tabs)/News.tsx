@@ -1,29 +1,64 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
+import { router } from 'expo-router';
+import storage from 'expo-sqlite/kv-store';
+import { useCallback, useState } from 'react';
+import { ActivityIndicator, Animated, FlatList, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { newsItemInterface as NewsItem } from '../../models/newsItem';
-import { fetchNewsItems } from '../../utils/newsItemUtil';
+import { deleteNewsItem, fetchNewsItems } from '../../utils/newsItemUtil';
 
 export default function NewsScreen() {
   const [newsItems, setNewsItems] = useState<NewsItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  
-  const loadNews = async () => {
+  const [showToast, setShowToast] = useState(false);
+  const [toastOpacity] = useState(new Animated.Value(0));
+  const [selectedItem, setSelectedItem] = useState<NewsItem | null>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const isAdmin = storage.getItemSync('isAdmin') === 'true';
+
+  const loadNews = useCallback(async () => {
     setRefreshing(true);
     const items = await fetchNewsItems();
     setNewsItems(items);
     setLoading(false);
     setRefreshing(false);
-  };
-  
-  useEffect(() => {
-    loadNews(); 
   }, []);
 
+  useFocusEffect(
+    useCallback(() => {
+      loadNews();
+    }, [loadNews])
+  );
+
+
+  const showAdminToast = () => {
+    setShowToast(true);
+    Animated.sequence([
+      Animated.timing(toastOpacity, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.delay(2000),
+      Animated.timing(toastOpacity, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start(() => setShowToast(false));
+  };
+
+  const handleAddPress = () => {
+    if (!isAdmin) {
+      showAdminToast();
+      return;
+    }
+    router.push('/(admin)/addNews');
+  };
+
   const formatTimeAgo = (unixTimestamp: number) => {
-    // Convert seconds to milliseconds
     const date = new Date(unixTimestamp * 1000);
     const now = new Date();
     const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
@@ -34,8 +69,39 @@ export default function NewsScreen() {
     return `Published ${Math.floor(seconds / 86400)}d ago.`;
   };
 
+  const handleCardPress = (item: NewsItem) => {
+    if (!isAdmin) {
+      showAdminToast()
+      return;
+    }
+    
+    setSelectedItem(item);
+    setShowEditModal(true);
+  };
+
+  const handleEdit = () => {
+    if (!selectedItem) return;
+    
+    router.push({
+      pathname: '/(admin)/editNews',
+      params: { id: selectedItem.id }
+    });
+    setShowEditModal(false);
+  };
+
+  const handleDelete = async () => {
+    if (!selectedItem) return;
+    await deleteNewsItem(selectedItem.id);
+    loadNews();
+    setShowEditModal(false);
+  };
+
   const renderNewsItem = ({ item }: { item: NewsItem }) => (
-    <TouchableOpacity style={styles.card} activeOpacity={0.7}>
+    <TouchableOpacity 
+      style={styles.card} 
+      activeOpacity={0.7} 
+      onPress={() => handleCardPress(item)}
+    >
       {item.localImagePath ? (
         <Image 
           source={{ uri: item.localImagePath }}
@@ -50,7 +116,7 @@ export default function NewsScreen() {
       )}
       <View style={styles.content}>
         <Text style={styles.title} numberOfLines={2}>
-          {item.title}
+          {item.title}          
         </Text>
         <Text style={styles.description} numberOfLines={3}>
           {item.description}
@@ -85,18 +151,71 @@ export default function NewsScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>News</Text>
-        <TouchableOpacity 
-          onPress={loadNews} 
-          style={styles.refreshButton}
-          disabled={refreshing}
-        >
-          <Ionicons 
-            name="refresh" 
-            size={24} 
-            color={refreshing ? "#666666" : "#007BFF"} 
-          />
-        </TouchableOpacity>
+        
+        <View style={styles.buttonContainer}>
+          <TouchableOpacity 
+            onPress={handleAddPress} 
+            style={styles.headerButton}
+          >
+            <Ionicons 
+              name="add-circle" 
+              size={24} 
+              color={isAdmin ? "#007BFF" : "#666666"}
+            />
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            onPress={loadNews} 
+            style={styles.headerButton}
+            disabled={refreshing}
+          >
+            <Ionicons 
+              name="refresh" 
+              size={24} 
+              color={refreshing ? "#666666" : "#007BFF"} 
+            />
+          </TouchableOpacity>
+        </View>
       </View>
+      
+      {showToast && (
+        <Animated.View style={[styles.toast, { opacity: toastOpacity }]}>
+          <Ionicons name="lock-closed" size={48} color="#FFF" />
+          <Text style={styles.toastText}>Admin access required to manage posts</Text>
+        </Animated.View>
+      )}
+      {showEditModal && (
+        <TouchableOpacity 
+          style={styles.overlay} 
+          activeOpacity={1}
+          onPress={() => setShowEditModal(false)}
+        />
+      )}
+      {showEditModal && selectedItem && (
+        <View style={styles.editModal}>
+          <Text style={styles.modalTitle}>Edit Post</Text>
+          <Text style={styles.modalSubtitle} numberOfLines={2}>
+            {selectedItem.title}
+          </Text>
+          
+          <TouchableOpacity 
+            style={styles.modalButton} 
+            onPress={handleEdit}
+          >
+            <Ionicons name="create-outline" size={24} color="#007BFF" />
+            <Text style={styles.modalButtonText}>Edit</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={[styles.modalButton, styles.deleteButton]} 
+            onPress={handleDelete}
+          >
+            <Ionicons name="trash-outline" size={24} color="#DC3545" />
+            <Text style={[styles.modalButtonText, styles.deleteText]}>Delete</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+      
       <FlatList
         data={newsItems}
         renderItem={renderNewsItem}
@@ -114,6 +233,15 @@ export default function NewsScreen() {
 }
 
 const styles = StyleSheet.create({
+  overlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)', 
+    zIndex: 999,
+  },
   container: {
     flex: 1,
     backgroundColor: '#000000',
@@ -131,11 +259,101 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#FFFFFF',
   },
-  refreshButton: {
-    padding: 8,
-    paddingTop: 24,
+  buttonContainer: {
+    flexDirection: 'row',
     position: 'absolute',
-    right: 20,
+    right: 12,
+    paddingTop: 24,
+    gap: 8,
+  },
+  headerButton: {
+    padding: 8,
+  },
+  toast: {
+    position: 'absolute',
+    top: '60%',
+    left: '50%',
+    transform: [{ translateX: -100 }, { translateY: -100 }],
+    width: 200,
+    height: 200,
+    backgroundColor: '#DC3545',
+    padding: 20,
+    borderRadius: 16,
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 16,
+    zIndex: 1000,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  toastText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '500',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  editModal: {
+    position: 'absolute',
+    top: '60%',
+    left: '50%',
+    transform: [{ translateX: -150 }, { translateY: -150 }],
+    width: 300,
+    backgroundColor: '#1C1C1E',
+    padding: 24,
+    borderRadius: 16,
+    zIndex: 1000,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: '#A0A0A0',
+    marginBottom: 24,
+    textAlign: 'center',
+  },
+  modalButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#2C2C2E',
+    padding: 16,
+    borderRadius: 8,
+    marginBottom: 12,
+    gap: 8,
+  },
+  modalButtonText: {
+    color: '#007BFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  deleteButton: {
+    backgroundColor: '#2C2C2E',
+  },
+  deleteText: {
+    color: '#DC3545',
+  },
+  cancelButton: {
+    padding: 12,
+    alignItems: 'center',
+  },
+  cancelText: {
+    color: '#666666',
+    fontSize: 14,
   },
   listContainer: {
     padding: 16,
@@ -220,7 +438,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingTop: 100,
+    minHeight: 400,
   },
   emptyText: {
     color: '#666666',

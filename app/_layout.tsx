@@ -8,7 +8,7 @@ import { useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import 'react-native-reanimated';
 import { AuthProvider, useAuth } from '../context/authContext';
-
+import { checkUserData } from '../utils/authUtility';
 function RootNavigator() {
   const colorScheme = useColorScheme();
   const segments = useSegments();
@@ -18,6 +18,11 @@ function RootNavigator() {
   // Initialize database once - singleton pattern handles reuse
   const db = initializeDatabase();
   useDrizzleStudio(db);
+  async function reviewUserData() {
+    await checkUserData()
+  }
+
+
 
   useEffect(() => {
     if (isLoading) return;
@@ -27,6 +32,7 @@ function RootNavigator() {
     if (!isAuthenticated && !inAuthGroup) {
       router.replace('/(auth)/Login');
     } else if (isAuthenticated && inAuthGroup) {
+      reviewUserData()
       router.replace('/(tabs)/News');
     }
   }, [isAuthenticated, isLoading, segments]);
@@ -48,6 +54,7 @@ function RootNavigator() {
         }}>
           <Stack.Screen name="(auth)" options={{ headerShown: false }} />
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="(admin)" options={{ headerShown: false }} />
         </Stack>
       </View>
       <StatusBar style="light" />

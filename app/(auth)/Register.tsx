@@ -2,38 +2,69 @@ import { useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/authContext';
-import { loginAccount } from '../../utils/authUtility';
+import { registerAccount } from '../../utils/authUtility';
 
-export default function AccountScreen() {
+export default function RegisterScreen() {
   const [email, setEmail] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { signIn } = useAuth();
   
-  const handleLogin = async () => {
+  const handleRegister = async () => {
     setError(null);
     setLoading(true);
     
     try { 
-      const result = await loginAccount(email, password);
-      
-      if (!result.success) {
-        setError(result.error || 'Login failed');
+        const result = await registerAccount({
+        email: email,
+        firstname: firstName,
+        lastname: lastName,
+        password: password,
+        token: null,
+        isAdmin: false
+        });
+        
+        if (!result.success) {
+        setError(typeof result.error === 'string' ? result.error : JSON.stringify(result.error) || 'Registration failed');
         return;
-      }
+        }
 
-      signIn(result.token);
-      
+        signIn(result.token);
+        
     } catch (err: any) {
-      setError(err.message ?? 'Unknown error');
+        setError(err.message ?? 'Unknown error');
     } finally {
-      setLoading(false);
+        setLoading(false);
     }
-  };
+    };
 
   return (
     <SafeAreaView style={styles.container}>
+      <Text style={styles.title}>Create Account</Text>
+      
+      <TextInput 
+        placeholder="First Name" 
+        style={styles.input}
+        placeholderTextColor="#999"
+        value={firstName}
+        onChangeText={setFirstName}
+        autoCapitalize="words"
+        selectionColor="#fff"
+      />
+      
+      <TextInput 
+        placeholder="Last Name" 
+        style={styles.input}
+        placeholderTextColor="#999"
+        value={lastName}
+        onChangeText={setLastName}
+        autoCapitalize="words"
+        selectionColor="#fff"
+      />
+      
       <TextInput 
         placeholder="Email" 
         style={styles.input}
@@ -44,8 +75,9 @@ export default function AccountScreen() {
         keyboardType="email-address"
         selectionColor="#fff"
       />
+      
       <TextInput 
-        placeholder="Password" 
+        placeholder="Password (min 8 characters)" 
         style={styles.input}
         secureTextEntry
         placeholderTextColor="#999"
@@ -53,8 +85,9 @@ export default function AccountScreen() {
         onChangeText={setPassword}
         selectionColor="#fff"
       />
-      <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
-        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Login</Text>}
+      
+      <TouchableOpacity style={styles.button} onPress={handleRegister} disabled={loading}>
+        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Register</Text>}
       </TouchableOpacity>
 
       {error ? (
@@ -73,6 +106,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
   },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 20,
+  },
   input: {
     width: '100%',
     padding: 10,
@@ -88,6 +127,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#007BFF',
     borderRadius: 5,
     alignItems: 'center',
+    marginTop: 10,
   },
   buttonText: {
     color: '#fff',

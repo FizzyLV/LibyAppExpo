@@ -13,7 +13,7 @@ export async function fetchNewsItems(): Promise<NewsItem[]> {
     const token = storage.getItemSync('token');
     const db = getDatabase();
     const lastId = getLastNewsItemId(db);
-    
+    console.log("Last ID:", lastId);
     try {
         const response = await fetch('http://192.168.0.110:8000/api/token/news/', {
             method: 'GET',
@@ -134,3 +134,100 @@ export function getLocalNewsItems(): NewsItem[] {
     const db = getDatabase();
     return getAllNewsItems(db);
 }   
+
+export async function createNewsPost(title: string, description: string, imageUri: string) {
+    const token = storage.getItemSync('token');
+    
+    try {
+        // Create FormData
+        const formData = new FormData();
+        formData.append('title', title);
+        formData.append('description', description);
+        
+        // Add image file
+        const filename = imageUri.split('/').pop() || 'image.jpg';
+        const match = /\.(\w+)$/.exec(filename);
+        const type = match ? `image/${match[1]}` : 'image/jpeg';
+        
+        formData.append('image', {
+            uri: imageUri,
+            name: filename,
+            type: type,
+        } as any);
+        
+        const response = await fetch('http://192.168.0.110:8000/api/token/addnews/', {
+            method: 'POST',
+            headers: {
+                'authorization': token ?? '',
+            },
+            body: formData,
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            return {
+                success: false,
+                error: error.detail || 'Failed to create news post'
+            };
+        }
+        
+        const data = await response.json();
+        console.log('News post created:', data);
+        
+        return {
+            success: true,
+            newsItem: data.newsItem
+        };
+        
+    } catch (error) {
+        console.error('Error creating news post:', error);
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error'
+        };
+    }
+}
+
+async function deleteNewsItemLocal(id: number) {
+    const db = getDatabase();
+    db.runSync(
+        `DELETE FROM newsItems WHERE id = ?`,
+        [id]
+    );
+}
+
+export async function deleteNewsItem(id: number) {
+    const token = storage.getItemSync('token');
+    try {
+        const response = await fetch(`http://192.168.0.110:8000/api/token/deletenews/${id}/`, {
+            method: 'DELETE',
+            headers: {
+                'authorization': token ?? '',
+            },
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            return {
+                success: false,
+                error: error.detail || 'Failed to delete news item'
+            };
+        }
+
+        const data = await response.json();
+
+        console.log('News item deleted:', data);
+        await deleteNewsItemLocal(id);
+        return {
+            success: true,
+            message: data.message
+        };
+
+    } catch (error) {
+        console.error('Error deleting news item:', error);
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error'
+        };
+    }
+}

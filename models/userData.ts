@@ -3,5 +3,7 @@ export interface UserDataInterface {
     lastname: string | null;
     email: string | null;
     password: string | null;
-    token: string | null;
+    token?: string | null;
+    isAdmin?: boolean | false;
 }
+
