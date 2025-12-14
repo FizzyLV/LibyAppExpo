@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -7,14 +8,18 @@ import { fetchNewsItems } from '../../utils/newsItemUtil';
 export default function NewsScreen() {
   const [newsItems, setNewsItems] = useState<NewsItem[]>([]);
   const [loading, setLoading] = useState(true);
-
+  const [refreshing, setRefreshing] = useState(false);
+  
+  const loadNews = async () => {
+    setRefreshing(true);
+    const items = await fetchNewsItems();
+    setNewsItems(items);
+    setLoading(false);
+    setRefreshing(false);
+  };
+  
   useEffect(() => {
-    const loadNews = async () => {
-      const items = await fetchNewsItems();
-      setNewsItems(items);
-      setLoading(false);
-    };
-    loadNews();
+    loadNews(); 
   }, []);
 
   const formatTimeAgo = (unixTimestamp: number) => {
@@ -29,15 +34,19 @@ export default function NewsScreen() {
     return `Published ${Math.floor(seconds / 86400)}d ago.`;
   };
 
-
   const renderNewsItem = ({ item }: { item: NewsItem }) => (
     <TouchableOpacity style={styles.card} activeOpacity={0.7}>
-      {item.localImagePath && (
+      {item.localImagePath ? (
         <Image 
-          source={{ uri: item.localImagePath }} 
+          source={{ uri: item.localImagePath }}
           style={styles.image}
           resizeMode="cover"
+          onError={(e) => console.log('Image load error:', e.nativeEvent.error)}
         />
+      ) : (
+        <View style={styles.imagePlaceholder}>
+          <Text style={styles.placeholderText}>No Image</Text>
+        </View>
       )}
       <View style={styles.content}>
         <Text style={styles.title} numberOfLines={2}>
@@ -76,6 +85,17 @@ export default function NewsScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>News</Text>
+        <TouchableOpacity 
+          onPress={loadNews} 
+          style={styles.refreshButton}
+          disabled={refreshing}
+        >
+          <Ionicons 
+            name="refresh" 
+            size={24} 
+            color={refreshing ? "#666666" : "#007BFF"} 
+          />
+        </TouchableOpacity>
       </View>
       <FlatList
         data={newsItems}
@@ -99,13 +119,23 @@ const styles = StyleSheet.create({
     backgroundColor: '#000000',
   },
   header: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
     padding: 20,
     paddingBottom: 10,
+    position: 'relative',
   },
   headerTitle: {
     fontSize: 32,
     fontWeight: 'bold',
     color: '#FFFFFF',
+  },
+  refreshButton: {
+    padding: 8,
+    paddingTop: 24,
+    position: 'absolute',
+    right: 20,
   },
   listContainer: {
     padding: 16,
@@ -121,6 +151,17 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 200,
     backgroundColor: '#2C2C2E',
+  },
+  imagePlaceholder: {
+    width: '100%',
+    height: 200,
+    backgroundColor: '#2C2C2E',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  placeholderText: {
+    color: '#666666',
+    fontSize: 14,
   },
   content: {
     padding: 16,
