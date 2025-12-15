@@ -4,22 +4,22 @@ import storage from 'expo-sqlite/kv-store';
 import { newsItemInterface as NewsItem } from '../models/newsItem';
 import { getDatabase } from './databaseCreate';
 
-export const getLastNewsItemId = (db: SQLite.SQLiteDatabase): number => {
-    const row = db.getFirstSync<{ id: number }>(`SELECT id FROM newsItems ORDER BY id DESC LIMIT 1`);
-    return row?.id ?? 0;
+export const getLastModifiedTimestamp = (db: SQLite.SQLiteDatabase): number => {
+    const row = db.getFirstSync<{ lastModifiedAt: number }>(`SELECT lastModifiedAt FROM newsItems ORDER BY lastModifiedAt DESC LIMIT 1`);
+    return row?.lastModifiedAt ?? 0;
 }
 
 export async function fetchNewsItems(): Promise<NewsItem[]> { 
     const token = storage.getItemSync('token');
     const db = getDatabase();
-    const lastId = getLastNewsItemId(db);
-    console.log("Last ID:", lastId);
+    const lastModified = getLastModifiedTimestamp(db);
+    console.log("Last Modified:", lastModified);
     try {
-        const response = await fetch('http://192.168.0.110:8000/api/token/news/', {
+        const response = await fetch('http://192.168.1.96:2134/api/token/news/', {
             method: 'GET',
             headers: {
                 'authorization': token ?? '',
-                'lastId': lastId.toString(),
+                'lastModified': lastModified.toString(),
             }
         });
 
@@ -51,30 +51,64 @@ export async function fetchNewsItems(): Promise<NewsItem[]> {
 async function processAndSaveNewsItem(item: any): Promise<void> {
     const db = getDatabase();
     
-    if (!newsItemExists(db, item)) {
-        // Download image if URL is provided
+    // Check if news item exists
+    if (newsItemExists(db, item)) {
+        // Update existing item
+        let localImagePath = getExistingImagePath(db, item.id);
+        
+        // Download new image if URL changed
+        if (item.imageUrl) {
+            localImagePath = await downloadImage(item.imageUrl, item.id);
+        }
+        
+        db.runSync(
+            `UPDATE newsItems 
+            SET localImagePath = ?, authorName = ?, title = ?, description = ?, publishedAt = ?, email = ?, lastModifiedAt = ?
+            WHERE id = ?`,
+            [
+                localImagePath ?? null,
+                item.authorName ?? null,
+                item.title ?? null,
+                item.description ?? null,
+                item.publishedAt ?? null,
+                item.email ?? null,
+                item.lastModifiedAt ?? null,
+                item.id
+            ]
+        );
+        console.log(`Updated news item: ${item.id}`);
+    } else {
+        // Insert new item
         let localImagePath = item.localImagePath;
         
         if (item.imageUrl) {
             localImagePath = await downloadImage(item.imageUrl, item.id);
         }
         
-        // Insert into database
         db.runSync(
-            `INSERT INTO newsItems (id, localImagePath, authorName, title, description, publishedAt, email)
-            VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO newsItems (id, localImagePath, authorName, title, description, publishedAt, email, lastModifiedAt)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
             [
-                item.id, 
-                localImagePath ?? null, 
-                item.authorName ?? null, 
-                item.title ?? null, 
-                item.description ?? null, 
-                item.publishedAt ?? null, 
-                item.email ?? null
+                item.id,
+                localImagePath ?? null,
+                item.authorName ?? null,
+                item.title ?? null,
+                item.description ?? null,
+                item.publishedAt ?? null,
+                item.email ?? null,
+                item.lastModifiedAt ?? null
             ]
         );
         console.log(`Saved news item: ${item.id}`);
     }
+}
+
+function getExistingImagePath(db: SQLite.SQLiteDatabase, newsId: number): string | null {
+    const row = db.getFirstSync<{ localImagePath: string }>(
+        `SELECT localImagePath FROM newsItems WHERE id = ?`,
+        [newsId]
+    );
+    return row?.localImagePath ?? null;
 }
 
 async function downloadImage(imageUrl: string, newsId: number): Promise<string | null> {
@@ -155,7 +189,7 @@ export async function createNewsPost(title: string, description: string, imageUr
             type: type,
         } as any);
         
-        const response = await fetch('http://192.168.0.110:8000/api/token/addnews/', {
+        const response = await fetch('http://192.168.1.96:2134/api/token/addnews/', {
             method: 'POST',
             headers: {
                 'authorization': token ?? '',
@@ -199,7 +233,7 @@ async function deleteNewsItemLocal(id: number) {
 export async function deleteNewsItem(id: number) {
     const token = storage.getItemSync('token');
     try {
-        const response = await fetch(`http://192.168.0.110:8000/api/token/deletenews/${id}/`, {
+        const response = await fetch(`http://192.168.1.96:2134/api/token/deletenews/${id}/`, {
             method: 'DELETE',
             headers: {
                 'authorization': token ?? '',
@@ -230,4 +264,102 @@ export async function deleteNewsItem(id: number) {
             error: error instanceof Error ? error.message : 'Unknown error'
         };
     }
+}
+
+export function getNewsItemById(newsId: string | number): NewsItem | null {
+  const db = getDatabase();
+  
+  const row = db.getFirstSync<NewsItem>(
+    `SELECT * FROM newsItems WHERE id = ?`,
+    [typeof newsId === 'string' ? parseInt(newsId) : newsId]
+  );
+  
+  return row ?? null;
+}
+
+export async function editNewsPost(
+  newsId: string,
+  title: string,
+  description: string,
+  imageUri: string | null
+) {
+  const token = storage.getItemSync('token');
+  
+  try {
+    // Create FormData
+    const formData = new FormData();
+    formData.append('title', title);
+    formData.append('description', description);
+    
+    // Only add image if a new one was selected
+    if (imageUri) {
+      const filename = imageUri.split('/').pop() || 'image.jpg';
+      const match = /\.(\w+)$/.exec(filename);
+      const type = match ? `image/${match[1]}` : 'image/jpeg';
+      
+      formData.append('image', {
+        uri: imageUri,
+        name: filename,
+        type: type,
+      } as any);
+    }
+    
+    console.log('Sending request to edit news:', newsId);
+    
+    const response = await fetch(`http://192.168.1.96:2134/api/token/editnews/${newsId}/`, {
+      method: 'POST',
+      headers: {
+        'authorization': token ?? '',
+      },
+      body: formData,
+    });
+    
+    console.log('Response status:', response.status);
+    
+    // Get the response text first
+    const responseText = await response.text();
+    console.log('Response body:', responseText);
+    
+    // Check if response is actually JSON
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      console.error('Server returned non-JSON response:', responseText);
+      return {
+        success: false,
+        error: `Server error: Expected JSON but got ${contentType || 'unknown type'}`
+      };
+    }
+    
+    // Try to parse JSON
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('Failed to parse JSON:', parseError);
+      return {
+        success: false,
+        error: 'Invalid response from server'
+      };
+    }
+    
+    if (!response.ok) {
+      return {
+        success: false,
+        error: data.detail || 'Failed to update news post'
+      };
+    }
+    
+    console.log('News post updated:', data);
+    
+    return {
+      success: true,
+    };
+    
+  } catch (error) {
+    console.error('Error updating news post:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    };
+  }
 }

@@ -18,7 +18,7 @@ export function SaveUserData(userData: UserDataInterface) {
 
 export async function revokeToken(token : string) {
         try {
-        const response = await fetch('http://192.168.0.110:8000/api/token/logout/', {
+        const response = await fetch('http://192.168.1.96:2134/api/token/logout/', {
             method: 'POST',
             headers: {
                 'authorization': token || ''  // Convert null to empty string
@@ -66,7 +66,7 @@ export function GetUserData(): UserDataInterface {
 export async function deleteAccount(){
     const token = storage.getItemSync('token');
     try {
-        const response = await fetch('http://192.168.0.110:8000/api/token/deleteac/', {
+        const response = await fetch('http://192.168.1.96:2134/api/token/deleteac/', {
             method: 'POST',
             headers: {
                 'authorization': token || '' 
@@ -89,7 +89,7 @@ export async function deleteAccount(){
 
 export async function registerAccount(UserInfo: UserDataInterface) {
     try {
-        const response = await fetch('http://192.168.0.110:8000/api/token/register/', {
+        const response = await fetch('http://192.168.1.96:2134/api/token/register/', {
             method: 'POST',
             headers: {
                 'Accept': 'application/json',
@@ -139,7 +139,7 @@ export async function registerAccount(UserInfo: UserDataInterface) {
 
 export async function loginAccount(email: string, password: string) {
     try {
-        const response = await fetch('http://192.168.0.110:8000/api/token/', {
+        const response = await fetch('http://192.168.1.96:2134/api/token/', {
             method: 'POST',
             headers: {
                 Accept: 'application/json',
@@ -203,7 +203,7 @@ export async function checkUserData() {
     }
 
     try {
-        const response = await fetch('http://192.168.0.110:8000/api/token/verify/', {
+        const response = await fetch('http://192.168.1.96:2134/api/token/verify/', {
             method: 'POST',
             headers: {
                 Accept: 'application/json',

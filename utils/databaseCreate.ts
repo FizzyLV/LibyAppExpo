@@ -14,7 +14,6 @@ export function initializeDatabase() {
   try {
     dbInstance = SQLite.openDatabaseSync('LibyApp.db');
     console.log('Database created and initialized');
-
     // Create table WITHOUT AUTOINCREMENT - uses server IDs directly
     dbInstance.execSync(`
       CREATE TABLE IF NOT EXISTS newsItems (
@@ -24,6 +23,7 @@ export function initializeDatabase() {
         title TEXT,
         description TEXT,
         publishedAt TEXT,
+        lastModifiedAt TEXT,
         email TEXT
       );
     `);
@@ -61,6 +61,7 @@ export function recreateTables() {
         title TEXT,
         description TEXT,
         publishedAt TEXT,
+        lastModifiedAt TEXT,
         email TEXT
       );
     `);
